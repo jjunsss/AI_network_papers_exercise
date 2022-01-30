@@ -106,4 +106,3 @@ def train(model, train_dataloader, optimizer, criterion, epoch):
 
 for epoch in range(EPOCHES):
     train(model, train_dataloader, optimizer, criterion, epoch)
-    
