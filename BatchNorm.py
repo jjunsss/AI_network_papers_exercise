@@ -14,12 +14,7 @@ from tqdm import tqdm
 BATCH_SIZE = 32
 EPOCHES = 10
 
-#* model pre-trained urls
-model_urls = {
-    "alexnet": "https://download.pytorch.org/models/alexnet-owt-7be5be79.pth",
-}
-
-#* config model
+#! config model
 class Alexnet(nn.Module):
     def __init__(self, num_classes : int = 1000, BN_effect : Boolean = True) -> None:
         super().__init__()
@@ -96,8 +91,10 @@ class Alexnet(nn.Module):
         x = torch.flatten(x, 1)    # Height * Width * channel value
         x = self.classifier(x)
         return x
-BN_model = Alexnet(10, True)
+
 original_model = Alexnet(10, False)
+BN_model = Alexnet(10, True)
+
 
 #dataset configuration
 train_dataset = torchvision.datasets.CIFAR10(root = "../CIFAR_10", train=True, download=False, transform= transforms.Compose([transforms.Resize(224), transforms.ToTensor()]))
@@ -127,11 +124,13 @@ BN_acc = []
 original_acc = []
 
 
-def train(model, train_dataloader, optimizer, criterion, epoch, loss_visual):
+def train(model, model_name, train_dataloader, optimizer, criterion, epoch, loss_visual):
     model.train()
     running_loss: float = 0.0
     
-    for idx, (images, labels) in enumerate(tqdm(train_dataloader, desc="training", position=0, leave= True)):
+    #torch.backends.cudnn.benchmark = True
+    
+    for idx, (images, labels) in enumerate(tqdm(train_dataloader, desc=model_name, position=0, leave= False)):
         optimizer.zero_grad()
         images = images.to(DEVICE)
         labels = labels.to(DEVICE)
@@ -141,42 +140,44 @@ def train(model, train_dataloader, optimizer, criterion, epoch, loss_visual):
         loss_visual.append(loss.item())
         loss.backward()
         
+
         optimizer.step()
-                
         running_loss += loss.item()
-        if idx % 500 == 0:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.4f' % (epoch + 1, idx + 1, running_loss / 2000))
-            running_loss = 0.0
+       
+    print('[%d, %5d] loss: %.4f' % (epoch + 1, idx + 1, running_loss / idx ))
     
     
-def test(model, test_dataloader, criterion, acc):
+def test(model, model_name, test_dataloader, criterion, acc):
     model.eval()
     correct = 0
     percent = 0.0
     loss_total = 0.0
+
     
-    for idx, (images, labels) in enumerate(tqdm(test_dataloader, desc="testing", position=0, leave = True)):
+    
+    for idx, (images, labels) in enumerate(tqdm(test_dataloader, desc=model_name, position=0, leave = False)):
         images = images.to(DEVICE)
         labels = labels.to(DEVICE)
         predict = model(images)
         
         loss = criterion(predict, labels)
-        
         predicted = torch.argmax(predict, dim = 1)
         correct += predicted.eq(labels).sum().item()
-        acc.append(correct/labels.size()[0])
+        
         
         loss_total += loss.item()
-    
+
+    acc.append(correct/ len(test_dataloader.dataset))
     percent = correct / len(test_dataloader.dataset)
     loss_total = loss_total / len(test_dataloader.dataset)
     print(f'test accuracy : {percent:.2f} \t avg_total : {loss_total:.4f}')
 
+
 for epoch in range(EPOCHES):
-    #train(BN_model, train_dataloader, BN_optimizer, criterion, epoch, BN_loss)
-    #train(original_model, train_dataloader, original_optimizer, criterion, epoch, original_loss)
-    test(BN_model, test_dataloader, criterion, BN_acc)
-    test(original_model, test_dataloader, criterion, original_acc)
+    train(BN_model, "BN_Training", train_dataloader, BN_optimizer, criterion, epoch, BN_loss)
+    train(original_model, "Original_Training", train_dataloader, original_optimizer, criterion, epoch, original_loss)
+    test(BN_model, "BN_Testing", test_dataloader, criterion, BN_acc)
+    test(original_model,"Original_Testing", test_dataloader, criterion, original_acc)
 
 
 # BN_loss graph
@@ -184,21 +185,21 @@ plt.plot([i for i in range(len(BN_loss))], BN_loss)
 plt.title('Train BN Loss')
 plt.xlabel('step')
 plt.ylabel('loss')
-
+plt.show()
 
 # original_loss graph
 plt.plot([i for i in range(len(original_loss))], original_loss)
 plt.title('Train original Loss')
 plt.xlabel('step')
 plt.ylabel('loss')
-
+plt.show()
 
 # BN_acc graph
 plt.plot([i for i in range(len(BN_acc))], BN_acc)
 plt.title('Test BN acc')
 plt.xlabel('step')
 plt.ylabel('acc')
-
+plt.show()
 
 # original_acc graph
 plt.plot([i for i in range(len(original_acc))], original_acc)
